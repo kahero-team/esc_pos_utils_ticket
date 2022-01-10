@@ -27,16 +27,16 @@ class Ticket {
   List<int> bytes = [];
   // Ticket config
   final PaperSize _paperSize;
-  int _maxCharsPerLine;
+  int? _maxCharsPerLine;
   // Global styles
-  PosCodeTable _codeTable;
-  PosFontType _font;
+  PosFontType? _font;
+  PosCodeTable? _codeTable;
   // Current styles
   PosStyles _styles = PosStyles();
 
   /// Set global code table which will be used instead of the default printer's code table
   /// (even after resetting)
-  void setGlobalCodeTable(PosCodeTable codeTable) {
+  void setGlobalCodeTable(PosCodeTable? codeTable) {
     _codeTable = codeTable;
     if (codeTable != null) {
       bytes += Uint8List.fromList(
@@ -48,7 +48,7 @@ class Ticket {
 
   /// Set global font which will be used instead of the default printer's font
   /// (even after resetting)
-  void setGlobalFont(PosFontType font, {int maxCharsPerLine}) {
+  void setGlobalFont(PosFontType? font, {int? maxCharsPerLine}) {
     _font = font;
     if (font != null) {
       _maxCharsPerLine = maxCharsPerLine ?? _getMaxCharsPerLine(font);
@@ -120,13 +120,13 @@ class Ticket {
     // Set local code table
     if (styles.codeTable != null && styles.codeTable != _styles.codeTable) {
       bytes += Uint8List.fromList(
-        List.from(cCodeTable.codeUnits)..add(styles.codeTable.value),
+        List.from(cCodeTable.codeUnits)..add(styles.codeTable!.value),
       );
       _styles =
           _styles.copyWith(align: styles.align, codeTable: styles.codeTable);
     } else if (_codeTable != null && _codeTable != _styles.codeTable) {
       bytes += Uint8List.fromList(
-        List.from(cCodeTable.codeUnits)..add(_codeTable.value),
+        List.from(cCodeTable.codeUnits)..add(_codeTable!.value),
       );
       _styles = _styles.copyWith(align: styles.align, codeTable: _codeTable);
     }
@@ -139,7 +139,7 @@ class Ticket {
     }
   }
 
-  int _getMaxCharsPerLine(PosFontType font) {
+  int _getMaxCharsPerLine(PosFontType? font) {
     if (_paperSize == PaperSize.mm58) {
       return (font == null || font == PosFontType.fontA) ? 32 : 42;
     } else {
@@ -156,7 +156,7 @@ class Ticket {
     int colInd = 0,
     bool isKanji = false,
     int colWidth = 12,
-    int maxCharsPerLine,
+    int? maxCharsPerLine,
   }) {
     // Calculate maxCharsPerLine
     int charsPerLine;
@@ -217,7 +217,7 @@ class Ticket {
     PosStyles styles = const PosStyles(),
     int linesAfter = 0,
     bool containsChinese = false,
-    int maxCharsPerLine,
+    int? maxCharsPerLine,
   }) {
     if (!containsChinese) {
       _text(
@@ -238,7 +238,7 @@ class Ticket {
     Uint8List textBytes, {
     PosStyles styles = const PosStyles(),
     int linesAfter = 0,
-    int maxCharsPerLine,
+    int? maxCharsPerLine,
   }) {
     _text(textBytes, styles: styles, maxCharsPerLine: maxCharsPerLine);
     // Ensure at least one line break after the text
@@ -279,7 +279,7 @@ class Ticket {
     String text, {
     PosStyles styles = const PosStyles(),
     int linesAfter = 0,
-    int maxCharsPerLine,
+    int? maxCharsPerLine,
   }) {
     final list = _getLexemes(text);
     final List<String> lexemes = list[0];
@@ -303,7 +303,7 @@ class Ticket {
   ///
   /// If [codeTable] is null, global code table is used.
   /// If global code table is null, default printer code table is used.
-  void printCodeTable({PosCodeTable codeTable}) {
+  void printCodeTable({PosCodeTable? codeTable}) {
     bytes += cKanjiOff.codeUnits;
 
     if (codeTable != null) {
@@ -332,10 +332,13 @@ class Ticket {
       final colInd =
           cols.sublist(0, i).fold(0, (int sum, col) => sum + col.width);
       if (!cols[i].containsChinese) {
+        // CASE 1: containsChinese = false
+        Uint8List encodedToPrint = cols[i].textEncoded != null
+            ? cols[i].textEncoded!
+            : _encode(cols[i].text);
+        // end rows splitting
         _text(
-          cols[i].textEncoded != null
-              ? cols[i].textEncoded
-              : _encode(cols[i].text),
+          encodedToPrint,
           styles: cols[i].styles,
           colInd: colInd,
           colWidth: cols[i].width,
@@ -515,7 +518,9 @@ class Ticket {
     // Adjust line spacing (for 16-unit line feeds): ESC 3 0x10 (HEX: 0x1b 0x33 0x10)
     bytes += [27, 51, 16];
     for (int i = 0; i < blobs.length; ++i) {
-      bytes += List.from(header)..addAll(blobs[i])..addAll('\n'.codeUnits);
+      bytes += List.from(header)
+        ..addAll(blobs[i])
+        ..addAll('\n'.codeUnits);
     }
     // Reset line spacing: ESC 2 (HEX: 0x1b 0x32)
     bytes += [27, 50];
@@ -636,9 +641,9 @@ class Ticket {
   /// Width, height, font, text position settings are effective until performing of ESC @, reset or power-off.
   void barcode(
     Barcode barcode, {
-    int width,
-    int height,
-    BarcodeFont font,
+    int? width,
+    int? height,
+    BarcodeFont? font,
     BarcodeText textPos = BarcodeText.below,
     PosAlign align = PosAlign.center,
   }) {
@@ -663,13 +668,13 @@ class Ticket {
     }
 
     // Print barcode
-    final header = cBarcodePrint.codeUnits + [barcode.type.value];
-    if (barcode.type.value <= 6) {
+    final header = cBarcodePrint.codeUnits + [barcode.type!.value];
+    if (barcode.type!.value <= 6) {
       // Function A
-      bytes += header + barcode.data + [0];
+      bytes += header + barcode.data! + [0];
     } else {
       // Function B
-      bytes += header + [barcode.data.length] + barcode.data;
+      bytes += header + [barcode.data!.length] + barcode.data!;
     }
   }
 
@@ -695,7 +700,7 @@ class Ticket {
 
   /// Print horizontal full width separator
   /// If [len] is null, then it will be defined according to the paper width
-  void hr({String ch = '-', int len, linesAfter = 0}) {
+  void hr({String ch = '-', int? len, linesAfter = 0}) {
     int n = len ?? _maxCharsPerLine ?? _getMaxCharsPerLine(_styles.fontType);
     String ch1 = ch.length == 1 ? ch : ch[0];
     text(List.filled(n, ch1).join(), linesAfter: linesAfter);
